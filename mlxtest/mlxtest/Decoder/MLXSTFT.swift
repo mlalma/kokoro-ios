@@ -161,7 +161,7 @@ func mlxIstft(
   }
 
   var reconstructed = outputs[0]
-  let windowSum = windowSums[0]
+  var windowSum = windowSums[0]
   for i in 1 ..< windowModLen {
     reconstructed += outputs[i]
     windowSum += windowSums[i]
