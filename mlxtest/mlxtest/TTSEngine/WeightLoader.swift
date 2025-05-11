@@ -29,24 +29,21 @@ class WeightLoader {
       }
     }
 
-    semaphore.wait()  // Block until the async task completes
+    semaphore.wait()
 
     if let error = operationError {
       fatalError("Failed to obtain weights file URL: \(error.localizedDescription)")
     }
 
     guard let finalURL = weightsFileURL else {
-      fatalError(
-        "Weight file URL could not be determined."
-      )
+      fatalError("Weight file URL could not be determined.")
     }
 
     logPrint("Proceeding to load and process weights from URL: \(finalURL.path)")
     do {
       return try self.loadAndProcessWeights(from: finalURL)
     } catch {
-      fatalError(
-        "Failed to load and process weights from \(finalURL.path): \(error.localizedDescription)")
+      fatalError("Failed to load and process weights from \(finalURL.path): \(error.localizedDescription)")
     }
   }
 
@@ -83,14 +80,10 @@ class WeightLoader {
       } else {
         var directoryContentsMessage =
           "Contents of download directory '\(modelDirectory.path)' could not be determined or directory is empty."
-        if let contents = try? FileManager.default.contentsOfDirectory(atPath: modelDirectory.path),
-          !contents.isEmpty
-        {
+        if let contents = try? FileManager.default.contentsOfDirectory(atPath: modelDirectory.path), !contents.isEmpty {
           directoryContentsMessage =
             "Contents of download directory '\(modelDirectory.path)\': \(contents.joined(separator: ", "))"
-        } else if let contents = try? FileManager.default.contentsOfDirectory(
-          atPath: modelDirectory.path), contents.isEmpty
-        {
+        } else if let contents = try? FileManager.default.contentsOfDirectory(atPath: modelDirectory.path), contents.isEmpty {
           directoryContentsMessage = "Download directory '\(modelDirectory.path)' is empty."
         }
 
