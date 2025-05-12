@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		0A76732B2DD108770011FBAD /* Transformers in Frameworks */ = {isa = PBXBuildFile; productRef = 0A76732A2DD108770011FBAD /* Transformers */; };
 		8D0998392D8712C3002ADCA9 /* MLX in Frameworks */ = {isa = PBXBuildFile; productRef = 8D0998382D8712C3002ADCA9 /* MLX */; };
 		8D09983B2D8712C3002ADCA9 /* MLXFFT in Frameworks */ = {isa = PBXBuildFile; productRef = 8D09983A2D8712C3002ADCA9 /* MLXFFT */; };
 		8D09983D2D8712C3002ADCA9 /* MLXFast in Frameworks */ = {isa = PBXBuildFile; productRef = 8D09983C2D8712C3002ADCA9 /* MLXFast */; };
@@ -48,6 +49,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				0A76732B2DD108770011FBAD /* Transformers in Frameworks */,
 				8D09983D2D8712C3002ADCA9 /* MLXFast in Frameworks */,
 				8D09983F2D8712C3002ADCA9 /* MLXLinalg in Frameworks */,
 				8D0998392D8712C3002ADCA9 /* MLX in Frameworks */,
@@ -111,6 +113,7 @@
 				8D09983C2D8712C3002ADCA9 /* MLXFast */,
 				8D09983E2D8712C3002ADCA9 /* MLXLinalg */,
 				8D0998402D8712C3002ADCA9 /* MLXNN */,
+				0A76732A2DD108770011FBAD /* Transformers */,
 			);
 			productName = mlxtest;
 			productReference = 8D0998262D87122F002ADCA9 /* mlxtest.app */;
@@ -142,6 +145,7 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				8D0998372D8712C3002ADCA9 /* XCRemoteSwiftPackageReference "mlx-swift" */,
+				0A7673292DD108770011FBAD /* XCRemoteSwiftPackageReference "swift-transformers" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 8D0998272D87122F002ADCA9 /* Products */;
@@ -391,6 +395,14 @@
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
+		0A7673292DD108770011FBAD /* XCRemoteSwiftPackageReference "swift-transformers" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/huggingface/swift-transformers.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 0.1.20;
+			};
+		};
 		8D0998372D8712C3002ADCA9 /* XCRemoteSwiftPackageReference "mlx-swift" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/ml-explore/mlx-swift";
@@ -402,6 +414,11 @@
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
+		0A76732A2DD108770011FBAD /* Transformers */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 0A7673292DD108770011FBAD /* XCRemoteSwiftPackageReference "swift-transformers" */;
+			productName = Transformers;
+		};
 		8D0998382D8712C3002ADCA9 /* MLX */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = 8D0998372D8712C3002ADCA9 /* XCRemoteSwiftPackageReference "mlx-swift" */;
