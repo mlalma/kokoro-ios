@@ -88,16 +88,21 @@ class LSTM: Module {
       var ifgo = xProj[0..., idx, 0...]
       ifgo = ifgo + MLX.matmul(currentHidden, whForward.transposed())
 
-      // Split gates
-      let gates = MLX.split(ifgo, parts: 4, axis: -1)
-      let i = MLX.sigmoid(gates[0])
-      let f = MLX.sigmoid(gates[1])
-      let g = MLX.tanh(gates[2])
-      let o = MLX.sigmoid(gates[3])
+      // Try fused Metal kernel first, fallback to standard ops
+      if let (newCell, newHidden) = LSTMKernels.fusedLSTMStep(ifgo: ifgo, cell: currentCell) {
+        currentCell = newCell
+        currentHidden = newHidden
+      } else {
+        // Fallback: standard gate computation
+        let gates = MLX.split(ifgo, parts: 4, axis: -1)
+        let i = MLX.sigmoid(gates[0])
+        let f = MLX.sigmoid(gates[1])
+        let g = MLX.tanh(gates[2])
+        let o = MLX.sigmoid(gates[3])
 
-      // Update cell and hidden states
-      currentCell = f * currentCell + i * g
-      currentHidden = o * MLX.tanh(currentCell)
+        currentCell = f * currentCell + i * g
+        currentHidden = o * MLX.tanh(currentCell)
+      }
 
       allCell.append(currentCell)
       allHidden.append(currentHidden)
@@ -132,27 +137,34 @@ class LSTM: Module {
     var currentCell = cell ?? MLXArray.zeros([x.shape[0], hiddenSize])
 
     // Process sequence in backward direction (seqLen-1 to 0)
+    // Use append (O(1)) instead of insert(at:0) (O(n)) for performance
     for idx in stride(from: seqLen - 1, through: 0, by: -1) {
       var ifgo = xProj[0..., idx, 0...]
       ifgo = ifgo + MLX.matmul(currentHidden, whBackward.transposed())
 
-      // Split gates
-      let gates = MLX.split(ifgo, parts: 4, axis: -1)
-      let i = MLX.sigmoid(gates[0])
-      let f = MLX.sigmoid(gates[1])
-      let g = MLX.tanh(gates[2])
-      let o = MLX.sigmoid(gates[3])
+      // Try fused Metal kernel first, fallback to standard ops
+      if let (newCell, newHidden) = LSTMKernels.fusedLSTMStep(ifgo: ifgo, cell: currentCell) {
+        currentCell = newCell
+        currentHidden = newHidden
+      } else {
+        // Fallback: standard gate computation
+        let gates = MLX.split(ifgo, parts: 4, axis: -1)
+        let i = MLX.sigmoid(gates[0])
+        let f = MLX.sigmoid(gates[1])
+        let g = MLX.tanh(gates[2])
+        let o = MLX.sigmoid(gates[3])
 
-      // Update cell and hidden states
-      currentCell = f * currentCell + i * g
-      currentHidden = o * MLX.tanh(currentCell)
+        currentCell = f * currentCell + i * g
+        currentHidden = o * MLX.tanh(currentCell)
+      }
 
-      // Insert at beginning to maintain original sequence order
-      allCell.insert(currentCell, at: 0)
-      allHidden.insert(currentHidden, at: 0)
+      // Append in reverse order (O(1) per step)
+      allCell.append(currentCell)
+      allHidden.append(currentHidden)
     }
 
-    return (MLX.stacked(allHidden, axis: -2), MLX.stacked(allCell, axis: -2))
+    // Reverse the arrays before stacking (O(n) Swift array reverse, simpler than MLX axis reverse)
+    return (MLX.stacked(allHidden.reversed(), axis: -2), MLX.stacked(allCell.reversed(), axis: -2))
   }
 
   func callAsFunction(

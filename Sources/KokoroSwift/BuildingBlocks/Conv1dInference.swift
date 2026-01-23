@@ -5,9 +5,9 @@ import Foundation
 import MLX
 import MLXNN
 
-class Conv1dInference {
-  public let weight: MLXArray
-  public let bias: MLXArray?
+class Conv1dInference: Module {
+  @ParameterInfo public var weight: MLXArray
+  @ParameterInfo public var bias: MLXArray?
   public let padding: Int
   public let dilation: Int
   public let stride: Int
@@ -24,8 +24,8 @@ class Conv1dInference {
     weight: MLXArray,
     bias: MLXArray? = nil
   ) {
-    self.weight = weight
-    self.bias = bias
+    self._weight.wrappedValue = weight
+    self._bias.wrappedValue = bias
     self.padding = padding
     self.dilation = dilation
     self.stride = stride

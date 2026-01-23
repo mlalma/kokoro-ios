@@ -13,17 +13,17 @@ import MLXNN
 /// 3. **Bidirectional LSTM**: Captures long-range dependencies in both directions
 ///
 /// The output embeddings are used by the decoder to generate speech aligned with the input text.
-final class TextEncoder {
+final class TextEncoder: Module {
   /// Embedding layer that converts token IDs to dense vectors
-  let embedding: Embedding
-  
+  @ModuleInfo var embedding: Embedding
+
   /// Stack of CNN blocks for local feature extraction
   /// Each block contains: [ConvWeighted, LayerNorm, Activation]
-  let cnn: [[Module]]
-  
+  @ModuleInfo var cnn: [[Module]]
+
   /// Bidirectional LSTM for capturing sequential dependencies
-  let lstm: LSTM
-  
+  @ModuleInfo var lstm: LSTM
+
   /// Initializes the text encoder with pretrained weights.
   /// - Parameters:
   ///   - weights: Dictionary of pretrained model weights
@@ -34,8 +34,8 @@ final class TextEncoder {
   ///   - actv: Activation function (default: LeakyReLU with slope 0.2)
   init(weights: [String: MLXArray], channels: Int, kernelSize: Int, depth: Int, nSymbols _: Int, actv: Module = LeakyReLU(negativeSlope: 0.2)) {
     // Initialize embedding layer
-    embedding = Embedding(weight: weights["text_encoder.embedding.weight"]!)
-    
+    self._embedding.wrappedValue = Embedding(weight: weights["text_encoder.embedding.weight"]!)
+
     // Calculate padding to maintain sequence length
     let padding = (kernelSize - 1) / 2
 
@@ -59,10 +59,10 @@ final class TextEncoder {
         actv,
       ])
     }
-    cnn = cnnLayers
+    self._cnn.wrappedValue = cnnLayers
 
     // Initialize bidirectional LSTM
-    lstm = LSTM(
+    self._lstm.wrappedValue = LSTM(
       inputSize: channels,
       hiddenSize: channels / 2,  // Half size because bidirectional (forward + backward)
       wxForward: weights["text_encoder.lstm.weight_ih_l0"]!,
@@ -75,7 +75,7 @@ final class TextEncoder {
       biasHhBackward: weights["text_encoder.lstm.bias_hh_l0_reverse"]!
     )
   }
-  
+
   /// Forward pass. Encodes input token sequences into contextual embeddings.
   ///
   /// The encoding pipeline:
@@ -93,13 +93,13 @@ final class TextEncoder {
   public func callAsFunction(_ x: MLXArray, inputLengths _: MLXArray, m: MLXArray) -> MLXArray {
     // Step 1: Convert token IDs to embeddings [batch, seq_len, embed_dim]
     var x = embedding(x)
-    
+
     // Transpose to [batch, embed_dim, seq_len] for CNN processing
     x = x.transposed(0, 2, 1)
-    
+
     // Expand mask dimensions for broadcasting [batch, 1, seq_len]
     let mask = m.expandedDimensions(axis: 1)
-    
+
     // Apply mask to zero out padding positions
     x = MLX.where(mask, 0.0, x)
 
@@ -110,23 +110,23 @@ final class TextEncoder {
         if layer is ConvWeighted || layer is LayerNormInference {
           // Swap axes to [batch, seq_len, channels] for processing
           x = MLX.swappedAxes(x, 2, 1)
-          
+
           if let convWeighted = layer as? ConvWeighted {
             x = convWeighted(x, conv: MLX.conv1d)
           } else if let layer = layer as? LayerNormInference {
             x = layer(x)
           }
-          
+
           // Swap back to [batch, channels, seq_len]
           x = MLX.swappedAxes(x, 2, 1)
-          
+
         // Handle activation layers
         } else if let layer = layer as? LeakyReLU {
           x = layer(x)
         } else {
           fatalError("Unsupported layer type")
         }
-        
+
         // Reapply mask after each layer to maintain padding
         x = MLX.where(mask, 0.0, x)
       }

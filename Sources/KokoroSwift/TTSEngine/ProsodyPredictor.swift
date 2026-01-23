@@ -18,25 +18,25 @@ import MLXNN
 ///
 /// These prosodic features are essential for generating natural-sounding,
 /// expressive speech with proper intonation and rhythm.
-final class ProsodyPredictor {
+final class ProsodyPredictor: Module {
   /// Shared bidirectional LSTM for processing input features
   /// Captures temporal dependencies before branching into F0 and N predictions
-  let shared: LSTM
-  
+  @ModuleInfo var shared: LSTM
+
   /// Stack of AdaIN residual blocks for F0 (pitch) prediction
   /// Includes upsampling to match the target temporal resolution
-  let F0: [AdainResBlk1d]
-  
+  @ModuleInfo var F0: [AdainResBlk1d]
+
   /// Stack of AdaIN residual blocks for N (voicing) prediction
   /// Parallel to F0 branch with similar architecture
-  let N: [AdainResBlk1d]
-  
+  @ModuleInfo var N: [AdainResBlk1d]
+
   /// Projection layer to convert F0 features to single-channel output
-  let F0Proj: Conv1dInference
-  
+  @ModuleInfo(key: "F0_proj") var F0Proj: Conv1dInference
+
   /// Projection layer to convert N features to single-channel output
-  let NProj: Conv1dInference
-  
+  @ModuleInfo(key: "N_proj") var NProj: Conv1dInference
+
   /// Initializes the prosody predictor with pretrained weights.
   /// - Parameters:
   ///   - weights: Dictionary of pretrained model weights
@@ -45,7 +45,7 @@ final class ProsodyPredictor {
   public init(weights: [String: MLXArray], styleDim: Int, dHid: Int) {
     // Initialize shared bidirectional LSTM
     // Processes concatenated hidden features and style embeddings
-    shared = LSTM(
+    self._shared.wrappedValue = LSTM(
       inputSize: dHid + styleDim,
       hiddenSize: dHid / 2,  // Half size because bidirectional (forward + backward)
       wxForward: weights["predictor.shared.weight_ih_l0"]!,
@@ -60,7 +60,7 @@ final class ProsodyPredictor {
 
     // Initialize F0 (pitch) prediction branch
     // Three residual blocks: maintain -> upsample -> refine
-    F0 = [
+    self._F0.wrappedValue = [
       // Block 0: Process features at original resolution
       AdainResBlk1d(weights: weights, weightKeyPrefix: "predictor.F0.0", dimIn: dHid, dimOut: dHid, styleDim: styleDim),
       // Block 1: Upsample and reduce dimensions
@@ -71,7 +71,7 @@ final class ProsodyPredictor {
 
     // Initialize N (voicing) prediction branch
     // Parallel structure to F0 branch
-    N = [
+    self._N.wrappedValue = [
       // Block 0: Process features at original resolution
       AdainResBlk1d(weights: weights, weightKeyPrefix: "predictor.N.0", dimIn: dHid, dimOut: dHid, styleDim: styleDim),
       // Block 1: Upsample and reduce dimensions
@@ -81,7 +81,7 @@ final class ProsodyPredictor {
     ]
 
     // Initialize F0 projection layer (multi-channel -> single channel)
-    F0Proj = Conv1dInference(
+    self._F0Proj.wrappedValue = Conv1dInference(
       inputChannels: dHid / 2,
       outputChannels: 1,
       kernelSize: 1,  // 1x1 convolution for channel reduction
@@ -91,7 +91,7 @@ final class ProsodyPredictor {
     )
 
     // Initialize N projection layer (multi-channel -> single channel)
-    NProj = Conv1dInference(
+    self._NProj.wrappedValue = Conv1dInference(
       inputChannels: dHid / 2,
       outputChannels: 1,
       kernelSize: 1,  // 1x1 convolution for channel reduction
@@ -121,12 +121,12 @@ final class ProsodyPredictor {
     // Step 2: F0 (pitch) prediction branch
     // Transpose to [batch, channels, seq_len] for convolutions
     var F0Val = x1.transposed(0, 2, 1)
-    
+
     // Process through AdaIN residual blocks with style conditioning
     for block in F0 {
       F0Val = block(x: F0Val, s: s)
     }
-    
+
     // Swap axes for projection: [batch, seq_len, channels]
     F0Val = MLX.swappedAxes(F0Val, 2, 1)
     // Project to single channel
@@ -137,12 +137,12 @@ final class ProsodyPredictor {
     // Step 3: N (voicing) prediction branch
     // Transpose to [batch, channels, seq_len] for convolutions
     var NVal = x1.transposed(0, 2, 1)
-    
+
     // Process through AdaIN residual blocks with style conditioning
     for block in N {
       NVal = block(x: NVal, s: s)
     }
-    
+
     // Swap axes for projection: [batch, seq_len, channels]
     NVal = MLX.swappedAxes(NVal, 2, 1)
     // Project to single channel
