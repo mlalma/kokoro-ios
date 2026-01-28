@@ -13,7 +13,8 @@ class AdaINResBlock1: Module {
   @ParameterInfo var alpha1: [MLXArray]
   @ParameterInfo var alpha2: [MLXArray]
 
-  private func getPadding(kernelSize: Int, dilation: Int = 1) -> Int {
+  @inline(__always)
+  private static func getPadding(kernelSize: Int, dilation: Int = 1) -> Int {
     return Int((kernelSize * dilation - dilation) / 2)
   }
 
@@ -39,7 +40,7 @@ class AdaINResBlock1: Module {
         weightV: weights[weightPrefixKey + ".convs1.\(i).weight_v"]!,
         bias: weights[weightPrefixKey + ".convs1.\(i).bias"]!,
         stride: 1,
-        padding: Int((kernelSize * dilationValue - dilationValue) / 2),
+        padding: Self.getPadding(kernelSize: kernelSize, dilation: dilationValue),
         dilation: dilationValue
       )
       convs1Arr.append(conv)
@@ -51,7 +52,7 @@ class AdaINResBlock1: Module {
         weightV: weights[weightPrefixKey + ".convs2.\(i).weight_v"]!,
         bias: weights[weightPrefixKey + ".convs2.\(i).bias"]!,
         stride: 1,
-        padding: Int((kernelSize - 1) / 2),
+        padding: Self.getPadding(kernelSize: kernelSize),
         dilation: 1
       )
       convs2Arr.append(conv)

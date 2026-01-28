@@ -295,7 +295,7 @@ public final class KokoroTTS {
     let result = audio[0].asArray(Float.self)
 
     // Clear GPU cache to reduce memory accumulation
-    GPU.clearCache()
+    Memory.clearCache()
 
     return (result, tokenArray)
   }
@@ -448,7 +448,7 @@ public final class KokoroTTS {
     let frameIndices = MLXArray(0 ..< totalFrames)
 
     // Create zeros and scatter 1.0 values at (frame, phoneme) positions
-    var oneHot = MLXArray.zeros([totalFrames, batchSize])
+    let oneHot = MLXArray.zeros([totalFrames, batchSize])
     oneHot[frameIndices, indicesMLX] = MLXArray(1.0)
 
     // Transpose to [batchSize, totalFrames] and add batch dimension
