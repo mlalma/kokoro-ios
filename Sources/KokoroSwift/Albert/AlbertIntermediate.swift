@@ -5,11 +5,11 @@ import Foundation
 import MLX
 import MLXNN
 
-class AlbertIntermediate {
-  let dense: Linear
+class AlbertIntermediate: Module {
+  @ModuleInfo var dense: Linear
 
   init(config: AlbertModelArgs) {
-    dense = Linear(config.hiddenSize, config.intermediateSize)
+    self._dense.wrappedValue = Linear(config.hiddenSize, config.intermediateSize)
   }
 
   func callAsFunction(_ hiddenStates: MLXArray) -> MLXArray {

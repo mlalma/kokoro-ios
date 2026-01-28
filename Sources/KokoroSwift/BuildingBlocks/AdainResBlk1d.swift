@@ -5,19 +5,19 @@ import Foundation
 import MLX
 import MLXNN
 
-class AdainResBlk1d {
+class AdainResBlk1d: Module {
   let actv: LeakyReLU
   let dimIn: Int
   let upsampleType: String
-  let upsample: UpSample1d
+  @ModuleInfo var upsample: UpSample1d
   let learned_sc: Bool
-  let pool: Module
+  @ModuleInfo var pool: Module
 
-  var conv1: ConvWeighted!
-  var conv2: ConvWeighted!
-  var norm1: AdaIN1d!
-  var norm2: AdaIN1d!
-  var conv1x1: ConvWeighted?
+  @ModuleInfo var conv1: ConvWeighted
+  @ModuleInfo var conv2: ConvWeighted
+  @ModuleInfo var norm1: AdaIN1d
+  @ModuleInfo var norm2: AdaIN1d
+  @ModuleInfo var conv1x1: ConvWeighted?
 
   init(
     weights: [String: MLXArray],
@@ -31,13 +31,13 @@ class AdainResBlk1d {
     self.actv = actv
     self.dimIn = dimIn
     upsampleType = upsample
-    self.upsample = UpSample1d(layerType: upsample)
+    self._upsample.wrappedValue = UpSample1d(layerType: upsample)
     learned_sc = dimIn != dimOut
 
     if upsample == "none" {
-      pool = Identity()
+      self._pool.wrappedValue = Identity()
     } else {
-      pool = ConvWeighted(
+      self._pool.wrappedValue = ConvWeighted(
         weightG: weights[weightKeyPrefix + ".pool.weight_g"]!,
         weightV: weights[weightKeyPrefix + ".pool.weight_v"]!,
         bias: weights[weightKeyPrefix + ".pool.bias"]!,
@@ -47,11 +47,8 @@ class AdainResBlk1d {
       )
     }
 
-    buildWeights(weights: weights, weightKeyPrefix: weightKeyPrefix, dimIn: dimIn, dimOut: dimOut, styleDim: styleDim)
-  }
-
-  func buildWeights(weights: [String: MLXArray], weightKeyPrefix: String, dimIn: Int, dimOut _: Int, styleDim: Int) {
-    conv1 = ConvWeighted(
+    // Initialize all conv/norm layers inline (not in separate method)
+    self._conv1.wrappedValue = ConvWeighted(
       weightG: weights[weightKeyPrefix + ".conv1.weight_g"]!,
       weightV: weights[weightKeyPrefix + ".conv1.weight_v"]!,
       bias: weights[weightKeyPrefix + ".conv1.bias"]!,
@@ -59,7 +56,7 @@ class AdainResBlk1d {
       padding: 1
     )
 
-    conv2 = ConvWeighted(
+    self._conv2.wrappedValue = ConvWeighted(
       weightG: weights[weightKeyPrefix + ".conv2.weight_g"]!,
       weightV: weights[weightKeyPrefix + ".conv2.weight_v"]!,
       bias: weights[weightKeyPrefix + ".conv2.bias"]!,
@@ -67,14 +64,14 @@ class AdainResBlk1d {
       padding: 1
     )
 
-    norm1 = AdaIN1d(
+    self._norm1.wrappedValue = AdaIN1d(
       styleDim: styleDim,
       numFeatures: dimIn,
       fcWeight: weights[weightKeyPrefix + ".norm1.fc.weight"]!,
       fcBias: weights[weightKeyPrefix + ".norm1.fc.bias"]!
     )
 
-    norm2 = AdaIN1d(
+    self._norm2.wrappedValue = AdaIN1d(
       styleDim: styleDim,
       numFeatures: dimIn,
       fcWeight: weights[weightKeyPrefix + ".norm2.fc.weight"]!,
@@ -82,13 +79,15 @@ class AdainResBlk1d {
     )
 
     if learned_sc {
-      conv1x1 = ConvWeighted(
+      self._conv1x1.wrappedValue = ConvWeighted(
         weightG: weights[weightKeyPrefix + ".conv1x1.weight_g"]!,
         weightV: weights[weightKeyPrefix + ".conv1x1.weight_v"]!,
         bias: nil,
         stride: 1,
         padding: 0
       )
+    } else {
+      self._conv1x1.wrappedValue = nil
     }
   }
 

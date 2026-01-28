@@ -5,15 +5,16 @@ import Foundation
 import MLX
 import MLXNN
 
-class AdaINResBlock1 {
-  var convs1: [ConvWeighted] = []
-  var convs2: [ConvWeighted] = []
-  var adain1: [AdaIN1d] = []
-  var adain2: [AdaIN1d] = []
-  var alpha1: [MLXArray] = []
-  var alpha2: [MLXArray] = []
+class AdaINResBlock1: Module {
+  @ModuleInfo var convs1: [ConvWeighted]
+  @ModuleInfo var convs2: [ConvWeighted]
+  @ModuleInfo var adain1: [AdaIN1d]
+  @ModuleInfo var adain2: [AdaIN1d]
+  @ParameterInfo var alpha1: [MLXArray]
+  @ParameterInfo var alpha2: [MLXArray]
 
-  private func getPadding(kernelSize: Int, dilation: Int = 1) -> Int {
+  @inline(__always)
+  private static func getPadding(kernelSize: Int, dilation: Int = 1) -> Int {
     return Int((kernelSize * dilation - dilation) / 2)
   }
 
@@ -25,6 +26,13 @@ class AdaINResBlock1 {
     dilation: [Int] = [1, 3, 5],
     styleDim: Int = 64
   ) {
+    var convs1Arr: [ConvWeighted] = []
+    var convs2Arr: [ConvWeighted] = []
+    var adain1Arr: [AdaIN1d] = []
+    var adain2Arr: [AdaIN1d] = []
+    var alpha1Arr: [MLXArray] = []
+    var alpha2Arr: [MLXArray] = []
+
     for i in 0 ..< 3 {
       let dilationValue = dilation[i]
       let conv = ConvWeighted(
@@ -32,33 +40,33 @@ class AdaINResBlock1 {
         weightV: weights[weightPrefixKey + ".convs1.\(i).weight_v"]!,
         bias: weights[weightPrefixKey + ".convs1.\(i).bias"]!,
         stride: 1,
-        padding: getPadding(kernelSize: kernelSize, dilation: dilationValue),
+        padding: Self.getPadding(kernelSize: kernelSize, dilation: dilationValue),
         dilation: dilationValue
       )
-      convs1.append(conv)
+      convs1Arr.append(conv)
     }
 
-    for i in 0 ..< convs1.count {
+    for i in 0 ..< 3 {
       let conv = ConvWeighted(
         weightG: weights[weightPrefixKey + ".convs2.\(i).weight_g"]!,
         weightV: weights[weightPrefixKey + ".convs2.\(i).weight_v"]!,
         bias: weights[weightPrefixKey + ".convs2.\(i).bias"]!,
         stride: 1,
-        padding: getPadding(kernelSize: kernelSize, dilation: 1),
+        padding: Self.getPadding(kernelSize: kernelSize),
         dilation: 1
       )
-      convs2.append(conv)
+      convs2Arr.append(conv)
     }
 
-    for i in 0 ..< convs1.count {
-      adain1.append(AdaIN1d(
+    for i in 0 ..< 3 {
+      adain1Arr.append(AdaIN1d(
         styleDim: styleDim,
         numFeatures: channels,
         fcWeight: weights[weightPrefixKey + ".adain1.\(i).fc.weight"]!,
         fcBias: weights[weightPrefixKey + ".adain1.\(i).fc.bias"]!
       ))
 
-      adain2.append(AdaIN1d(
+      adain2Arr.append(AdaIN1d(
         styleDim: styleDim,
         numFeatures: channels,
         fcWeight: weights[weightPrefixKey + ".adain2.\(i).fc.weight"]!,
@@ -66,10 +74,17 @@ class AdaINResBlock1 {
       ))
     }
 
-    for i in 0 ..< convs1.count {
-      alpha1.append(weights[weightPrefixKey + ".alpha1.\(i)"]!)
-      alpha2.append(weights[weightPrefixKey + ".alpha2.\(i)"]!)
+    for i in 0 ..< 3 {
+      alpha1Arr.append(weights[weightPrefixKey + ".alpha1.\(i)"]!)
+      alpha2Arr.append(weights[weightPrefixKey + ".alpha2.\(i)"]!)
     }
+
+    self._convs1.wrappedValue = convs1Arr
+    self._convs2.wrappedValue = convs2Arr
+    self._adain1.wrappedValue = adain1Arr
+    self._adain2.wrappedValue = adain2Arr
+    self._alpha1.wrappedValue = alpha1Arr
+    self._alpha2.wrappedValue = alpha2Arr
   }
 
   func callAsFunction(_ x: MLXArray, _ s: MLXArray) -> MLXArray {

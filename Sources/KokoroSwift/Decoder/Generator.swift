@@ -5,19 +5,19 @@ import Foundation
 import MLX
 import MLXNN
 
-class Generator {
+class Generator: Module {
   let numKernels: Int
   let numUpsamples: Int
-  let mSource: SourceModuleHnNSF
-  let f0Upsample: Upsample
+  @ModuleInfo var mSource: SourceModuleHnNSF
+  @ModuleInfo var f0Upsample: Upsample
   let postNFFt: Int
-  var noiseConvs: [Conv1dInference]
-  var noiseRes: [AdaINResBlock1]
-  var ups: [ConvWeighted]
-  var resBlocks: [AdaINResBlock1]
-  let convPost: ConvWeighted
-  let reflectionPad: ReflectionPad1d
-  let stft: MLXSTFT
+  @ModuleInfo(key: "noise_convs") var noiseConvs: [Conv1dInference]
+  @ModuleInfo(key: "noise_res") var noiseRes: [AdaINResBlock1]
+  @ModuleInfo var ups: [ConvWeighted]
+  @ModuleInfo var resBlocks: [AdaINResBlock1]
+  @ModuleInfo(key: "conv_post") var convPost: ConvWeighted
+  @ModuleInfo var reflectionPad: ReflectionPad1d
+  @ModuleInfo var stft: MLXSTFT
 
   init(weights: [String: MLXArray],
        styleDim: Int,
@@ -35,7 +35,7 @@ class Generator {
     let upsampleScaleNum = MLX.product(MLXArray(upsampleRates)) * genIstftHopSize
     let upsampleScaleNumVal: Int = upsampleScaleNum.item()
 
-    mSource = SourceModuleHnNSF(
+    self._mSource.wrappedValue = SourceModuleHnNSF(
       weights: weights,
       samplingRate: KokoroTTS.Constants.samplingRate,
       upsampleScale: upsampleScaleNum.item(),
@@ -43,14 +43,14 @@ class Generator {
       voicedThreshold: 10
     )
 
-    f0Upsample = Upsample(scaleFactor: .float(Float(upsampleScaleNumVal)))
+    self._f0Upsample.wrappedValue = Upsample(scaleFactor: .float(Float(upsampleScaleNumVal)))
 
-    noiseConvs = []
-    noiseRes = []
-    ups = []
+    var noiseConvsArr: [Conv1dInference] = []
+    var noiseResArr: [AdaINResBlock1] = []
+    var upsArr: [ConvWeighted] = []
 
     for (i, (u, k)) in zip(upsampleRates, upsampleKernelSizes).enumerated() {
-      ups.append(
+      upsArr.append(
         ConvWeighted(
           weightG: weights["decoder.generator.ups.\(i).weight_g"]!,
           weightV: weights["decoder.generator.ups.\(i).weight_v"]!,
@@ -61,11 +61,11 @@ class Generator {
       )
     }
 
-    resBlocks = []
-    for i in 0 ..< ups.count {
+    var resBlocksArr: [AdaINResBlock1] = []
+    for i in 0 ..< upsArr.count {
       let ch = upsampleInitialChannel / Int(pow(2.0, Double(i + 1)))
       for (j, (k, d)) in zip(resblockKernelSizes, resblockDilationSizes).enumerated() {
-        resBlocks.append(
+        resBlocksArr.append(
           AdaINResBlock1(
             weights: weights,
             weightPrefixKey: "decoder.generator.resblocks.\((i * resblockKernelSizes.count) + j)",
@@ -80,7 +80,7 @@ class Generator {
       let cCur = ch
       if i + 1 < upsampleRates.count {
         let strideF0: Int = MLX.product(MLXArray(upsampleRates)[(i + 1)...]).item()
-        noiseConvs.append(
+        noiseConvsArr.append(
           Conv1dInference(
             inputChannels: genIstftNFft + 2,
             outputChannels: cCur,
@@ -92,7 +92,7 @@ class Generator {
           )
         )
 
-        noiseRes.append(
+        noiseResArr.append(
           AdaINResBlock1(
             weights: weights,
             weightPrefixKey: "decoder.generator.noise_res.\(i)",
@@ -103,7 +103,7 @@ class Generator {
           )
         )
       } else {
-        noiseConvs.append(
+        noiseConvsArr.append(
           Conv1dInference(
             inputChannels: genIstftNFft + 2,
             outputChannels: cCur,
@@ -112,7 +112,7 @@ class Generator {
             bias: weights["decoder.generator.noise_convs.\(i).bias"]!
           )
         )
-        noiseRes.append(
+        noiseResArr.append(
           AdaINResBlock1(
             weights: weights,
             weightPrefixKey: "decoder.generator.noise_res.\(i)",
@@ -127,7 +127,12 @@ class Generator {
 
     postNFFt = genIstftNFft
 
-    convPost = ConvWeighted(
+    self._ups.wrappedValue = upsArr
+    self._resBlocks.wrappedValue = resBlocksArr
+    self._noiseConvs.wrappedValue = noiseConvsArr
+    self._noiseRes.wrappedValue = noiseResArr
+
+    self._convPost.wrappedValue = ConvWeighted(
       weightG: weights["decoder.generator.conv_post.weight_g"]!,
       weightV: weights["decoder.generator.conv_post.weight_v"]!,
       bias: weights["decoder.generator.conv_post.bias"]!,
@@ -135,9 +140,9 @@ class Generator {
       padding: 3
     )
 
-    reflectionPad = ReflectionPad1d(padding: (1, 0))
+    self._reflectionPad.wrappedValue = ReflectionPad1d(padding: (1, 0))
 
-    stft = MLXSTFT(
+    self._stft.wrappedValue = MLXSTFT(
       filterLength: genIstftNFft,
       hopLength: genIstftHopSize,
       winLength: genIstftNFft
@@ -152,10 +157,10 @@ class Generator {
 
     harSource = MLX.squeezed(harSource.transposed(0, 2, 1), axis: 1)
     let (harSpec, harPhase) = stft.transform(inputData: harSource)
-    
+
     var har = MLX.concatenated([harSpec, harPhase], axis: 1)
     har = MLX.swappedAxes(har, 2, 1)
-        
+
     var newX = x
     for i in 0 ..< numUpsamples {
       newX = LeakyReLU(negativeSlope: 0.1)(newX)
@@ -171,7 +176,7 @@ class Generator {
         newX = reflectionPad(newX)
       }
       newX = newX + xSource
-      
+
       var xs: MLXArray?
       for j in 0 ..< numKernels {
         if xs == nil {
@@ -183,13 +188,13 @@ class Generator {
       }
       newX = xs! / numKernels
     }
-    
+
     newX = LeakyReLU(negativeSlope: 0.01)(newX)
 
     newX = MLX.swappedAxes(newX, 2, 1)
     newX = convPost(newX, conv: MLX.conv1d)
     newX = MLX.swappedAxes(newX, 2, 1)
-    
+
     let spec = MLX.exp(newX[0..., 0 ..< (postNFFt / 2 + 1), 0...])
     let phase = MLX.sin(newX[0..., (postNFFt / 2 + 1)..., 0...])
 

@@ -5,13 +5,13 @@ import Foundation
 import MLX
 import MLXNN
 
-class AlbertSelfOutput {
-  let dense: Linear
-  let layerNorm: LayerNorm
+class AlbertSelfOutput: Module {
+  @ModuleInfo var dense: Linear
+  @ModuleInfo var layerNorm: LayerNorm
 
   init(config: AlbertModelArgs) {
-    dense = Linear(config.hiddenSize, config.hiddenSize)
-    layerNorm = LayerNorm(
+    self._dense.wrappedValue = Linear(config.hiddenSize, config.hiddenSize)
+    self._layerNorm.wrappedValue = LayerNorm(
       dimensions: config.hiddenSize,
       eps: config.layerNormEps
     )

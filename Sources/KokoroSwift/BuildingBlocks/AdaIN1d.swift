@@ -5,13 +5,13 @@ import Foundation
 import MLX
 import MLXNN
 
-class AdaIN1d {
-  private let norm: InstanceNorm1d
-  private let fc: Linear
+class AdaIN1d: Module {
+  @ModuleInfo private var norm: InstanceNorm1d
+  @ModuleInfo private var fc: Linear
 
   public init(styleDim _: Int, numFeatures: Int, fcWeight: MLXArray, fcBias: MLXArray) {
-    norm = InstanceNorm1d(numFeatures: numFeatures, affine: false)
-    fc = Linear(weight: fcWeight, bias: fcBias)
+    self._norm.wrappedValue = InstanceNorm1d(numFeatures: numFeatures, affine: false)
+    self._fc.wrappedValue = Linear(weight: fcWeight, bias: fcBias)
   }
 
   public func callAsFunction(_ x: MLXArray, s: MLXArray) -> MLXArray {

@@ -5,21 +5,21 @@ import Foundation
 import MLX
 import MLXNN
 
-class AlbertEncoder {
+class AlbertEncoder: Module {
   let config: AlbertModelArgs
-  let embeddingHiddenMappingIn: Linear
-  let albertLayerGroups: [AlbertLayerGroup]
+  @ModuleInfo var embeddingHiddenMappingIn: Linear
+  @ModuleInfo(key: "albert_layer_groups") var albertLayerGroups: [AlbertLayerGroup]
 
   init(weights: [String: MLXArray], config: AlbertModelArgs) {
     self.config = config
-    embeddingHiddenMappingIn = Linear(weight: weights["bert.encoder.embedding_hidden_mapping_in.weight"]!,
+    self._embeddingHiddenMappingIn.wrappedValue = Linear(weight: weights["bert.encoder.embedding_hidden_mapping_in.weight"]!,
                                       bias: weights["bert.encoder.embedding_hidden_mapping_in.bias"]!)
 
     var groups: [AlbertLayerGroup] = []
     for layerNum in 0 ..< config.numHiddenGroups {
       groups.append(AlbertLayerGroup(config: config, layerNum: layerNum, weights: weights))
     }
-    albertLayerGroups = groups
+    self._albertLayerGroups.wrappedValue = groups
   }
 
   func callAsFunction(

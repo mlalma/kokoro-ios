@@ -5,17 +5,17 @@ import Foundation
 import MLX
 import MLXNN
 
-class AlbertEmbeddings {
-  let wordEmbeddings: Embedding
-  let positionEmbeddings: Embedding
-  let tokenTypeEmbeddings: Embedding
-  let layerNorm: LayerNorm
+class AlbertEmbeddings: Module {
+  @ModuleInfo var wordEmbeddings: Embedding
+  @ModuleInfo var positionEmbeddings: Embedding
+  @ModuleInfo var tokenTypeEmbeddings: Embedding
+  @ModuleInfo var layerNorm: LayerNormInference
 
   init(weights: [String: MLXArray], config: AlbertModelArgs) {
-    wordEmbeddings = Embedding(weight: weights["bert.embeddings.word_embeddings.weight"]!)
-    positionEmbeddings = Embedding(weight: weights["bert.embeddings.position_embeddings.weight"]!)
-    tokenTypeEmbeddings = Embedding(weight: weights["bert.embeddings.token_type_embeddings.weight"]!)
-    layerNorm = LayerNorm(dimensions: config.embeddingSize, eps: config.layerNormEps)
+    self._wordEmbeddings.wrappedValue = Embedding(weight: weights["bert.embeddings.word_embeddings.weight"]!)
+    self._positionEmbeddings.wrappedValue = Embedding(weight: weights["bert.embeddings.position_embeddings.weight"]!)
+    self._tokenTypeEmbeddings.wrappedValue = Embedding(weight: weights["bert.embeddings.token_type_embeddings.weight"]!)
+
     let layerNormWeights = weights["bert.embeddings.LayerNorm.weight"]!
     let layerNormBiases = weights["bert.embeddings.LayerNorm.bias"]!
 
@@ -23,10 +23,8 @@ class AlbertEmbeddings {
       fatalError("Wrong shape for AlbertEmbeddings LayerNorm bias or weights!")
     }
 
-    for i in 0 ..< layerNormBiases.shape[0] {
-      layerNorm.bias![i] = layerNormBiases[i]
-      layerNorm.weight![i] = layerNormWeights[i]
-    }
+    // Use LayerNormInference which accepts weights directly in init
+    self._layerNorm.wrappedValue = LayerNormInference(weight: layerNormWeights, bias: layerNormBiases, eps: config.layerNormEps)
   }
 
   func callAsFunction(

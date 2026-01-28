@@ -5,13 +5,13 @@ import Foundation
 import MLX
 import MLXNN
 
-class Decoder {
-  private let encode: AdainResBlk1d
-  private var decode: [AdainResBlk1d] = []
-  private let F0Conv: ConvWeighted
-  private let NConv: ConvWeighted
-  private let asrRes: [ConvWeighted]
-  private let generator: Generator
+class Decoder: Module {
+  @ModuleInfo var encode: AdainResBlk1d
+  @ModuleInfo var decode: [AdainResBlk1d]
+  @ModuleInfo(key: "F0_conv") var F0Conv: ConvWeighted
+  @ModuleInfo(key: "N_conv") var NConv: ConvWeighted
+  @ModuleInfo(key: "asr_res") var asrRes: [ConvWeighted]
+  @ModuleInfo var generator: Generator
 
   init(
     weights: [String: MLXArray],
@@ -26,14 +26,16 @@ class Decoder {
     genIstftNFft: Int,
     genIstftHopSize: Int
   ) {
-    encode = AdainResBlk1d(weights: weights, weightKeyPrefix: "decoder.encode", dimIn: dimIn + 2, dimOut: 1024, styleDim: styleDim)
+    self._encode.wrappedValue = AdainResBlk1d(weights: weights, weightKeyPrefix: "decoder.encode", dimIn: dimIn + 2, dimOut: 1024, styleDim: styleDim)
 
-    decode.append(AdainResBlk1d(weights: weights, weightKeyPrefix: "decoder.decode.0", dimIn: 1024 + 2 + 64, dimOut: 1024, styleDim: styleDim))
-    decode.append(AdainResBlk1d(weights: weights, weightKeyPrefix: "decoder.decode.1", dimIn: 1024 + 2 + 64, dimOut: 1024, styleDim: styleDim))
-    decode.append(AdainResBlk1d(weights: weights, weightKeyPrefix: "decoder.decode.2", dimIn: 1024 + 2 + 64, dimOut: 1024, styleDim: styleDim))
-    decode.append(AdainResBlk1d(weights: weights, weightKeyPrefix: "decoder.decode.3", dimIn: 1024 + 2 + 64, dimOut: 512, styleDim: styleDim, upsample: "true"))
+    var decodeBlocks: [AdainResBlk1d] = []
+    decodeBlocks.append(AdainResBlk1d(weights: weights, weightKeyPrefix: "decoder.decode.0", dimIn: 1024 + 2 + 64, dimOut: 1024, styleDim: styleDim))
+    decodeBlocks.append(AdainResBlk1d(weights: weights, weightKeyPrefix: "decoder.decode.1", dimIn: 1024 + 2 + 64, dimOut: 1024, styleDim: styleDim))
+    decodeBlocks.append(AdainResBlk1d(weights: weights, weightKeyPrefix: "decoder.decode.2", dimIn: 1024 + 2 + 64, dimOut: 1024, styleDim: styleDim))
+    decodeBlocks.append(AdainResBlk1d(weights: weights, weightKeyPrefix: "decoder.decode.3", dimIn: 1024 + 2 + 64, dimOut: 512, styleDim: styleDim, upsample: "true"))
+    self._decode.wrappedValue = decodeBlocks
 
-    F0Conv = ConvWeighted(
+    self._F0Conv.wrappedValue = ConvWeighted(
       weightG: weights["decoder.F0_conv.weight_g"]!,
       weightV: weights["decoder.F0_conv.weight_v"]!,
       bias: weights["decoder.F0_conv.bias"]!,
@@ -41,7 +43,7 @@ class Decoder {
       padding: 1,
       groups: 1
     )
-    NConv = ConvWeighted(
+    self._NConv.wrappedValue = ConvWeighted(
       weightG: weights["decoder.N_conv.weight_g"]!,
       weightV: weights["decoder.N_conv.weight_v"]!,
       bias: weights["decoder.N_conv.bias"]!,
@@ -50,14 +52,14 @@ class Decoder {
       groups: 1
     )
 
-    asrRes = [ConvWeighted(
+    self._asrRes.wrappedValue = [ConvWeighted(
       weightG: weights["decoder.asr_res.0.weight_g"]!,
       weightV: weights["decoder.asr_res.0.weight_v"]!,
       bias: weights["decoder.asr_res.0.bias"]!,
       padding: 0
     )]
 
-    generator = Generator(
+    self._generator.wrappedValue = Generator(
       weights: weights,
       styleDim: styleDim,
       resblockKernelSizes: resblockKernelSizes,

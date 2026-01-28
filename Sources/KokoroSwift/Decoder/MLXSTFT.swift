@@ -174,7 +174,7 @@ func mlxIstft(
   return reconstructed
 }
 
-class MLXSTFT {
+class MLXSTFT: Module {
   let filterLength: Int
   let hopLength: Int
   let winLength: Int

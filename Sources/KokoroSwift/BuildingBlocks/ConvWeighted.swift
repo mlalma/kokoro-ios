@@ -6,10 +6,14 @@ import MLX
 import MLXNN
 
 /// Conv1d with weight normalization
+/// Optimized: pre-computes normalized weights at initialization for better performance
 class ConvWeighted: Module {
-  var weightG: MLXArray
-  var weightV: MLXArray
-  var bias: MLXArray?
+  /// Pre-computed normalized weight (computed once at init)
+  private let normalizedWeight: MLXArray
+  /// Pre-computed transposed normalized weight for cases where transpose is needed
+  private let normalizedWeightTransposed: MLXArray
+  /// Reshaped bias for broadcasting
+  private let reshapedBias: MLXArray?
 
   let stride: Int
   let padding: Int
@@ -33,123 +37,85 @@ class ConvWeighted: Module {
     self.outputPadding = outputPadding
     self.groups = groups
 
-    self.weightG = weightG
-    self.weightV = weightV
-    self.bias = bias
+    // Pre-compute normalized weight at initialization (instead of every forward pass)
+    self.normalizedWeight = Self.computeWeightNorm(weightV: weightV, weightG: weightG)
+    self.normalizedWeightTransposed = self.normalizedWeight.transposed()
+
+    // Pre-reshape bias for broadcasting
+    self.reshapedBias = bias?.reshaped([1, 1, -1])
 
     super.init()
   }
-  
-  private func computeNorm(
-    x: MLXArray,
-    p: Int,
-    dim: [Int]? = nil,
-    keepdim: Bool = false
-  ) -> MLXArray {
-    guard p == 1 || p == 2 else {
-      fatalError("Only p-norms with p of 1 or 2 are supported")
-    }
 
-    let dimensions: [Int]
-    if let dim = dim {
-      dimensions = dim
-    } else {
-      dimensions = Array(0 ..< x.ndim)
-    }
-
-    if p == 1 {
-      // L1 norm
-      return MLX.sum(MLX.abs(x), axes: dimensions, keepDims: keepdim)
-    } else {
-      // L2 norm
-      return MLX.sqrt(MLX.sum(x * x, axes: dimensions, keepDims: keepdim))
-    }
-  }
-
-  private func weightNorm(
+  /// Computes weight normalization: weight = g * (v / ||v||)
+  /// This is mathematically equivalent to PyTorch's weight_norm
+  private static func computeWeightNorm(
     weightV: MLXArray,
-    weightG: MLXArray,
-    dim: Int? = nil
+    weightG: MLXArray
   ) -> MLXArray {
     let rank = weightV.shape.count
 
-    var axes: [Int]
+    // Compute L2 norm over all axes except dim 0
+    let axes = Array(1 ..< rank)
+    let normV = MLX.sqrt(MLX.sum(weightV * weightV, axes: axes, keepDims: true))
 
-    if let dim = dim {
-      var adjustedDim = dim
-      if dim < 0 {
-        adjustedDim += rank
-      }
-
-      axes = Array(0 ..< rank)
-      if adjustedDim != -1 {
-        axes.removeAll(where: { $0 == adjustedDim })
-      }
-    } else {
-      axes = Array(0 ..< rank)
-    }
-
-    let normV = computeNorm(x: weightV, p: 2, dim: axes, keepdim: true)
-
-    // Add epsilon for numerical stability
+    // Normalize: v / ||v|| with epsilon for numerical stability
     let normalizedWeight = weightV / (normV + 1e-7)
+
+    // Scale by g
     return normalizedWeight * weightG
   }
-  
+
+  /// Forward pass for conv1d (6-parameter version)
   public func callAsFunction(_ x: MLXArray, conv: (MLXArray, MLXArray, Int, Int, Int, Int, StreamOrDevice) -> MLXArray) -> MLXArray {
-    let weight = weightNorm(weightV: weightV, weightG: weightG, dim: 0)
-    bias = bias?.reshaped([1, 1, -1])
-
-    func applyConv(x: MLXArray, weightToUse: MLXArray) -> MLXArray {
-      let result = conv(
-        x,
-        weightToUse,
-        self.stride,
-        padding,
-        dilation,
-        groups,
-        .default
-      )
-
-      if let bias = bias {
-        return result + bias
-      }
-      return result
-    }
-
-    if x.shape.last == weight.shape.last || groups > 1 {
-      return applyConv(x: x, weightToUse: weight)
+    // Use pre-computed weights instead of computing on every call
+    let weightToUse: MLXArray
+    if x.shape.last == normalizedWeight.shape.last || groups > 1 {
+      weightToUse = normalizedWeight
     } else {
-      return applyConv(x: x, weightToUse: weight.transposed())
+      weightToUse = normalizedWeightTransposed
     }
+
+    let result = conv(
+      x,
+      weightToUse,
+      stride,
+      padding,
+      dilation,
+      groups,
+      .default
+    )
+
+    if let bias = reshapedBias {
+      return result + bias
+    }
+    return result
   }
-  
+
+  /// Forward pass for convTransposed1d (7-parameter version with outputPadding)
   public func callAsFunction(_ x: MLXArray, conv: (MLXArray, MLXArray, Int, Int, Int, Int, Int, StreamOrDevice) -> MLXArray) -> MLXArray {
-    let weight = weightNorm(weightV: weightV, weightG: weightG, dim: 0)
-    bias = bias?.reshaped([1, 1, -1])
-
-    func applyConv(x: MLXArray, weightToUse: MLXArray) -> MLXArray {
-      let result = conv(
-        x,
-        weightToUse,
-        self.stride,
-        padding,
-        dilation,
-        outputPadding,
-        groups,
-        .default
-      )
-
-      if let bias = bias {
-        return result + bias
-      }
-      return result
-    }
-
-    if x.shape.last == weight.shape.last || groups > 1 {
-      return applyConv(x: x, weightToUse: weight)
+    // Use pre-computed weights instead of computing on every call
+    let weightToUse: MLXArray
+    if x.shape.last == normalizedWeight.shape.last || groups > 1 {
+      weightToUse = normalizedWeight
     } else {
-      return applyConv(x: x, weightToUse: weight.transposed())
+      weightToUse = normalizedWeightTransposed
     }
+
+    let result = conv(
+      x,
+      weightToUse,
+      stride,
+      padding,
+      dilation,
+      outputPadding,
+      groups,
+      .default
+    )
+
+    if let bias = reshapedBias {
+      return result + bias
+    }
+    return result
   }
 }
