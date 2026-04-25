@@ -40,26 +40,35 @@ class TimestampPredictor {
      
       if t.phonemes == nil {
         if !t.whitespace.isEmpty {
-          i += 1
-          left = right + predictionDuration[i].item()
-          right = left + predictionDuration[i].item()
-          i += 1
+          let spaceTokenCount = Tokenizer.tokenize(phonemizedText: t.whitespace).count
+          if spaceTokenCount > 0 {
+            let spaceDuration: Float = predictionDuration[i..<(i + spaceTokenCount)].sum().item()
+            left = right + spaceDuration
+            right = left + spaceDuration
+            i += spaceTokenCount
+          }
         }
         continue
       }
       
-      let j = i + t.phonemes!.count
+      // Use the same tokenizer the model uses so the phoneme count matches
+      // predictionDuration exactly. Raw character/scalar counting is wrong
+      // because the tokenizer maps each grapheme cluster through the vocab and
+      // filters out any character not present (e.g. combining diacritics).
+      let phonemeTokenCount = Tokenizer.tokenize(phonemizedText: t.phonemes!).count
+      let j = i + phonemeTokenCount
       if j >= predictionDuration.shape[0] {
         break
       }
 
       t.start_ts = Double(left / magicDivisor)
       let tokenDuration: Float = predictionDuration[i..<j].sum().item()
-      let spaceDuration: Float = t.whitespace.isEmpty ? 0.0 : predictionDuration[j].item()
+      let spaceTokenCount = t.whitespace.isEmpty ? 0 : Tokenizer.tokenize(phonemizedText: t.whitespace).count
+      let spaceDuration: Float = spaceTokenCount > 0 ? predictionDuration[j..<(j + spaceTokenCount)].sum().item() : 0.0
       left = right + (2.0 * tokenDuration) + spaceDuration
       t.end_ts = Double(left / magicDivisor)
       right = left + spaceDuration
-      i = j + (t.whitespace.isEmpty ? 0 : 1)
+      i = j + spaceTokenCount
     }
   }
 }

@@ -38,6 +38,10 @@ final class WeightLoader {
 
     // Process each weight based on its component prefix
     for (key, value) in weights {
+      // Normalize key: strip _module suffix from top-level prefix
+      // e.g. "bert_module." -> "bert.", "predictor_module." -> "predictor."
+      let key = key.replacingOccurrences(of: "_module.", with: ".")
+
       // Process BERT encoder weights
       if key.hasPrefix("bert") {
         // Skip position_ids as they're not needed for inference
