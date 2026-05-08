@@ -34,7 +34,7 @@ let package = Package(
         .product(name: "MLXUtilsLibrary", package: "MLXUtilsLibrary")
       ],
       resources: [
-       .copy("../../Resources/")
+       .copy("../../Resources/config.json")
       ]
     ),
     .testTarget(
